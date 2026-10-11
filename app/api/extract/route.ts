@@ -48,16 +48,24 @@ export async function POST(req: Request) {
     if (!result.relevant) return NextResponse.json(result);
 
     // Step 2: extraction (Sonnet) with forced structured output
+    // Sonnet 5.5 does not accept a forced tool_choice, so we let it choose the tool (instructed to always call it)
+    // and fall back to parsing JSON from a text reply.
     const m = await client.messages.create({
-      model: EXTRACTION_MODEL, max_tokens: 3000,
-      system: extractionSystemPrompt(dataset.asOf, dataset.team),
-      tools: [RECORD_TOOL as any], tool_choice: { type: "tool", name: "record_items" },
+      model: EXTRACTION_MODEL, max_tokens: 8000,
+      system: extractionSystemPrompt(dataset.asOf, dataset.team) + "\n\nAlways respond by calling the record_items tool exactly once, even when there are no items.",
+      tools: [RECORD_TOOL as any], tool_choice: { type: "auto" },
       messages: [{ role: "user", content: docMessage(doc) }],
     });
     result.models.push(EXTRACTION_MODEL);
     result.usage.input_tokens += m.usage.input_tokens; result.usage.output_tokens += m.usage.output_tokens;
     const tb: any = m.content.find((b) => b.type === "tool_use");
-    const input = tb?.input ?? {};
+    let input: any = tb?.input;
+    if (!input) {
+      const text = m.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n");
+      const json = text.match(/\{[\s\S]*\}/);
+      try { input = json ? JSON.parse(json[0]) : null; } catch { input = null; }
+    }
+    if (!input) throw new Error(`Extraction model returned no structured items (stop_reason: ${m.stop_reason})`);
     if (input.suspicious_instruction) {
       result.suspicious = true;
       result.suspiciousReason = [result.suspiciousReason, `Model: ${input.suspicious_reason ?? "instruction aimed at an AI"}`].filter(Boolean).join(" | ");
