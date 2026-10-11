@@ -4,12 +4,12 @@ Kokku Naga Venkata Durga Prasad · Codebasics AI PM Cohort · October 2026
 
 | # | Deliverable | File |
 |---|---|---|
-| 1 | Completed user research worksheet | [Capstone1_Step1_Problem_Discovery_User_Research.xlsx](Capstone1_Step1_Problem_Discovery_User_Research.xlsx) |
-| 2 | AI opportunity map | [Miro board](https://miro.com/app/board/uXjVEbvXgh0=/) · export: [PDF](Capstone1_Step2_AI_Opportunity_Map_Miro.pdf), [PNG](Capstone1_Step2_AI_Opportunity_Map_Miro.png) |
-| 3 | AI PRD | [Word](Capstone1_Step3_AI_PRD_PromiseKeeper.docx) · [PDF](Capstone1_Step3_AI_PRD_PromiseKeeper.pdf) |
-| 4 | Cost estimation | [Capstone1_Step4_Cost_Estimation.xlsx](Capstone1_Step4_Cost_Estimation.xlsx) |
+| 1 | Completed user research worksheet | [Capstone_Sales&CRM_Naga Venkata Durga Prasad Kokku_User_Research_Worksheet.xlsx](Capstone_Sales%26CRM_Naga%20Venkata%20Durga%20Prasad%20Kokku_User_Research_Worksheet.xlsx) |
+| 2 | AI opportunity map | [Miro board](https://miro.com/app/board/uXjVEbvXgh0=/) · export: [PDF](Capstone_Sales%26CRM_Naga%20Venkata%20Durga%20Prasad%20Kokku_AI_Opportunity_Map.pdf), [PNG](Capstone_Sales%26CRM_Naga%20Venkata%20Durga%20Prasad%20Kokku_AI_Opportunity_Map.png) |
+| 3 | AI PRD | [Word](Capstone_Sales%26CRM_Naga%20Venkata%20Durga%20Prasad%20Kokku_AI_PRD.docx) · [PDF](Capstone_Sales%26CRM_Naga%20Venkata%20Durga%20Prasad%20Kokku_AI_PRD.pdf) |
+| 4 | Cost estimation | [Capstone_Sales&CRM_Naga Venkata Durga Prasad Kokku_Cost_Estimation.xlsx](Capstone_Sales%26CRM_Naga%20Venkata%20Durga%20Prasad%20Kokku_Cost_Estimation.xlsx) |
 | 5 | Working AI prototype | Code and README: the [root of this repository](../README.md) · live app: [atliq-promisekeeper.vercel.app](https://atliq-promisekeeper.vercel.app) |
-| 6 | Presentation | [Capstone1_Step6_PromiseKeeper_Presentation.pdf](Capstone1_Step6_PromiseKeeper_Presentation.pdf) |
+| 6 | Presentation | [Capstone_Sales&CRM_Naga Venkata Durga Prasad Kokku_Presentation.pdf](Capstone_Sales%26CRM_Naga%20Venkata%20Durga%20Prasad%20Kokku_Presentation.pdf) |
 | 7 | Stakeholder demo video | Link to be added |
 
 ## The story in one paragraph
