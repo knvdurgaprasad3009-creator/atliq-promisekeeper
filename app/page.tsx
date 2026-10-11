@@ -108,8 +108,17 @@ export default function Home() {
   const visible = analysis.brief.filter((i) => !["done", "snoozed"].includes(decisions[i.key]?.state ?? ""));
   const mine = seller === "All" ? visible : seller === "Unowned" ? visible.filter((i) => !ownerOf(i)) : visible.filter((i) => ownerOf(i) === seller);
   const shown = seller === "All" ? mine : mine.slice(0, 10);
+  const groups = [
+    { id: "late", title: "Late", items: shown.filter((i) => (i.daysLeft !== null && i.daysLeft < 0)) },
+    { id: "soon", title: "Due in the next 7 days", items: shown.filter((i) => i.daysLeft !== null && i.daysLeft >= 0 && i.daysLeft <= 7) },
+    { id: "waiting", title: "Clients waiting on us", items: shown.filter((i) => i.daysLeft === null && ["client_request", "promise_by_atliq", "new_lead"].includes(i.type)) },
+    { id: "later", title: "Later and opportunities", items: shown.filter((i) => (i.daysLeft !== null && i.daysLeft > 7) || (i.daysLeft === null && !["client_request", "promise_by_atliq", "new_lead"].includes(i.type))) },
+  ];
   const doneCount = Object.values(decisions).filter((d) => d.state === "done").length;
   const overdue = visible.filter((i) => (i.daysLeft ?? 0) < 0 || (i.daysLeft === null && i.ageDays > 14)).length;
+  const lateCount = visible.filter((i) => i.daysLeft !== null && i.daysLeft < 0).length;
+  const soonCount = visible.filter((i) => i.daysLeft !== null && i.daysLeft >= 0 && i.daysLeft <= 7).length;
+  const waitingCount = visible.filter((i) => i.daysLeft === null && ["client_request", "promise_by_atliq", "new_lead"].includes(i.type)).length;
   const fixesOpen = analysis.fixes.filter((f) => !decisions[f.id]).length;
   const valueAtRisk = useMemo(() => {
     const byAcc = new Map<string, number>();
@@ -137,78 +146,101 @@ export default function Home() {
   return (
     <>
       <header className="top">
-        <div className="wrap">
+        <div className="wrap topbar">
           <div className="brand">
-            <h1>AtliQ PromiseKeeper</h1>
-            <p>Every client promise, kept. Data as of {fmtDate(dataset.asOf)} 2026 · {dataset.docs.length} emails and notes · {dataset.crm.length} CRM records</p>
+            <svg className="mark" viewBox="0 0 40 40" aria-hidden="true"><rect width="40" height="40" rx="10" /><path d="M11 21l6 6 12-14" /></svg>
+            <div>
+              <h1>PromiseKeeper</h1>
+              <p>for AtliQ Technologies</p>
+            </div>
           </div>
           <div className="runbox">
-            {status?.accessCodeRequired && <input className="code" placeholder="Access code" value={code} onChange={(e) => setCode(e.target.value)} />}
+            {status?.accessCodeRequired && <input className="code" placeholder="Access code" aria-label="Access code" value={code} onChange={(e) => setCode(e.target.value)} />}
             {progress ? (
-              <><div className="progress"><div style={{ width: `${(progress.done / progress.total) * 100}%` }} /></div> Reading {progress.done}/{progress.total}...</>
+              <div className="reading" role="status"><div className="progress"><div style={{ width: `${(progress.done / progress.total) * 100}%` }} /></div>Reading {progress.done} of {progress.total}</div>
             ) : (
               <button className="btn primary" onClick={runAI} disabled={!status?.aiEnabled} title={status?.aiEnabled ? "" : "Set ANTHROPIC_API_KEY on the server"}>
-                {run ? "Re-run AI analysis" : "Run AI analysis"}
+                {run ? "Re-read all emails" : "Read all emails"}
               </button>
             )}
-            {run && <button className="btn" onClick={exportRun}>Export run</button>}
+            {run && <button className="btn ghost" onClick={exportRun}>Export run</button>}
           </div>
         </div>
       </header>
 
       <main className="wrap">
-        {status && !status.aiEnabled && <div className="notice">Live AI is off: the server has no ANTHROPIC_API_KEY. {run ? `Showing the ${loadedFrom}.` : "Add the key in Vercel settings to run the analysis."}</div>}
-        {err && <div className="notice">Some documents failed: {err}</div>}
-        {run && (() => { const bad = Object.values(run.results).filter((r) => r.error); return bad.length ? <div className="notice"><b>{bad.length} of {Object.keys(run.results).length} documents failed in the last run.</b> First error from the AI service: <code>{bad[0].error}</code></div> : null; })()}
-        {run && (
-          <p className="meta">AI run: {new Date(run.ranAt).toLocaleString()} ({loadedFrom}) · models: {status?.filterModel ?? "Haiku"} (filter), {status?.extractionModel ?? "Sonnet"} (extraction) · {tokens.toLocaleString()} tokens, at most ${costUpper.toFixed(2)}</p>
-        )}
+        {status && !status.aiEnabled && !run && <div className="notice">Live AI is off because the server has no ANTHROPIC_API_KEY. Add it in Vercel settings, then press Read all emails.</div>}
+        {err && <div className="notice">Some documents could not be read: {err}</div>}
+        {run && (() => { const bad = Object.values(run.results).filter((r) => r.error); return bad.length ? <div className="notice"><b>{bad.length} of {Object.keys(run.results).length} documents failed in the last run.</b> Error from the AI service: <code>{bad[0].error}</code></div> : null; })()}
 
-        <div className="kpis">
-          <div className="kpi"><b>{visible.length}</b><span>open items in the brief</span></div>
-          <div className="kpi"><b>{overdue}</b><span>overdue or waiting &gt; 14 days</span></div>
-          <div className="kpi"><b>${Math.round(valueAtRisk / 1000)}k</b><span>CRM value with an open item due within 3 weeks</span></div>
-          <div className="kpi"><b>{doneCount}</b><span>marked done this session</span></div>
-          <div className="kpi"><b>{Math.round(answerKey.baseline.rate * 100)}%</b><span>commitments met on time before PromiseKeeper (baseline)</span></div>
-        </div>
+        {tab === "brief" && <section className="hero">
+          <div className="hero-text">
+            <p className="today">{new Date(dataset.asOf + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</p>
+            {run ? (
+              <h2>AtliQ owes its clients {visible.length} things. <span className="late">{lateCount} are late</span>, <span className="soon">{soonCount} are due this week</span> and {waitingCount} are waiting on a reply.</h2>
+            ) : (
+              <h2>Every promise AtliQ makes to a client, read from the inbox and kept in one place.</h2>
+            )}
+            <p className="baseline">Before PromiseKeeper, AtliQ kept {answerKey.baseline.met} of {answerKey.baseline.due} client commitments on time.</p>
+          </div>
+          <dl className="ledger">
+            <div><dt>Late</dt><dd className="late">{lateCount}</dd></div>
+            <div><dt>Due in 7 days</dt><dd className="soon">{soonCount}</dd></div>
+            <div><dt>Deal value with an open item</dt><dd>${Math.round(valueAtRisk / 1000)}k</dd></div>
+            <div><dt>Waiting on a reply</dt><dd>{waitingCount}</dd></div>
+            <div><dt>Marked done today</dt><dd className="ok">{doneCount}</dd></div>
+          </dl>
+        </section>}
+        {run && <p className="runline">Last read {new Date(run.ranAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })} from {loadedFrom}. {analysis.stats.docs} documents, {tokens.toLocaleString()} tokens, under ${Math.max(0.01, costUpper).toFixed(2)}. Models: {status?.filterModel ?? "claude-haiku-5-5"} to screen, {status?.extractionModel ?? "claude-sonnet-5-5"} to read.</p>}
 
-        <nav className="tabs">
-          {([["brief", "Daily brief", visible.length], ["fixes", "CRM fixes", fixesOpen], ["unsure", "Unsure & flagged", analysis.unsure.length], ["evals", "Evals", null], ["audit", "Audit log", audit.length], ["data", "Data", null]] as [Tab, string, number | null][]).map(([t, l, n]) => (
+        <nav className="tabs" style={tab === "brief" ? undefined : { marginTop: 28 }}>
+          {([["brief", "Today's brief", visible.length], ["fixes", "CRM fixes", fixesOpen], ["unsure", "Needs a human", analysis.unsure.length], ["evals", "Evals", null], ["audit", "Audit log", audit.length], ["data", "Source data", null]] as [Tab, string, number | null][]).map(([t, l, n]) => (
             <button key={t} className={tab === t ? "on" : ""} onClick={() => setTab(t)}>{l}{n !== null && <span className="count">{n}</span>}</button>
           ))}
         </nav>
 
-        {!run && <div className="empty">No analysis yet. Press <b>Run AI analysis</b> to read all {dataset.docs.length} documents (about a minute).</div>}
+        {!run && <div className="empty">Nothing read yet. Press <b>Read all emails</b> to go through all {dataset.docs.length} emails and notes. It takes about a minute.</div>}
 
         {run && tab === "brief" && (
           <section>
-            <div className="chips">
-              {["All", ...SELLERS, "Unowned"].map((s) => <button key={s} className={`chip ${seller === s ? "on" : ""}`} onClick={() => setSeller(s)}>{s === "All" ? "Team view" : s}</button>)}
+            <div className="people" role="tablist" aria-label="Whose brief">
+              {["All", ...SELLERS, "Unowned"].map((p) => {
+                const n = p === "All" ? visible.length : p === "Unowned" ? visible.filter((i) => !ownerOf(i)).length : visible.filter((i) => ownerOf(i) === p).length;
+                return <button key={p} role="tab" aria-selected={seller === p} className={`person ${seller === p ? "on" : ""}`} onClick={() => setSeller(p)}>
+                  {p !== "All" && p !== "Unowned" && <span className="avatar" aria-hidden="true">{p[0]}</span>}
+                  <span>{p === "All" ? "Whole team" : p === "Unowned" ? "No owner" : p}</span><span className="n">{n}</span>
+                </button>;
+              })}
             </div>
             {seller !== "All" && (
-              <div className="summary">
-                <div className="row" style={{ justifyContent: "space-between" }}>
-                  <b>{seller === "Unowned" ? "Items with no owner" : `${seller}'s top ${Math.min(10, mine.length)} today`}</b>
-                  {status?.aiEnabled && mine.length > 0 && <button className="btn small" onClick={() => summarise(seller, mine)}>Summarise my day</button>}
+              <div className="morning">
+                <div>
+                  <h3>{seller === "Unowned" ? "Nobody owns these yet" : `${seller}'s top ${Math.min(10, mine.length)} for today`}</h3>
+                  {summary[seller] ? <p>{summary[seller]}</p> : mine.length === 0 ? <p>Nothing owed today.</p> : <p className="hint">{seller === "Unowned" ? "Assign each one so it lands in someone's brief." : "Capped at 10 so the list stays readable on a phone."}</p>}
                 </div>
-                {summary[seller] && <p style={{ margin: "6px 0 0" }}>{summary[seller]}</p>}
-                {mine.length === 0 && <p style={{ margin: "6px 0 0" }}>Nothing owed today.</p>}
+                {status?.aiEnabled && mine.length > 0 && seller !== "Unowned" && <button className="btn ghost" onClick={() => summarise(seller, mine)}>Summarise my day</button>}
               </div>
             )}
-            {shown.map((i, n) => <ItemCard key={i.key} i={i} rank={n + 1} owner={ownerOf(i)} onDoc={setViewDoc}
-              onDone={() => decide(i.key, { state: "done" }, `${i.account}: ${i.summary}`, "Marked done")}
-              onSnooze={() => decide(i.key, { state: "snoozed" }, `${i.account}: ${i.summary}`, "Snoozed")}
-              onReassign={(to) => decide(i.key, { state: "reassigned", to }, `${i.account}: ${i.summary}`, `Reassigned to ${to}`)} />)}
-            {seller !== "All" && mine.length > 10 && <p className="meta">{mine.length - 10} more items are in the team view. The personal brief is capped at 10 to avoid alert fatigue.</p>}
-            <details style={{ marginTop: 16 }}><summary className="meta">How items are ranked (rules, not AI)</summary>
-              <p className="meta">Score = urgency (overdue: 60+; due in 0-3 days: 55; 4-7: 45; 8-14: 30; later: 10; undated requests: 10 + days waiting, max 50) + deal value (value / $2,000, max 40) + type (client deadline 10; request, promise, new lead, revived deal 8; revisit 6; cross-sell 5). Ambiguous accounts and do-not-contact accounts never reach the brief; items the AI is unsure about are shown with a "please check" label. Duplicates across threads and internal notes are merged, items superseded by a later deal-stage change are hidden, and CRM evidence (e.g. a logged contact after the due date) marks items as done.</p>
+            {groups.map((g) => g.items.length > 0 && (
+              <div key={g.id} className={`group ${g.id}`}>
+                <h3 className="group-title">{g.title}<span>{g.items.length}</span></h3>
+                {g.items.map((i) => <ItemCard key={i.key} i={i} rank={shown.indexOf(i) + 1} owner={ownerOf(i)} onDoc={setViewDoc}
+                  onDone={() => decide(i.key, { state: "done" }, `${i.account}: ${i.summary}`, "Marked done")}
+                  onSnooze={() => decide(i.key, { state: "snoozed" }, `${i.account}: ${i.summary}`, "Snoozed")}
+                  onReassign={(to) => decide(i.key, { state: "reassigned", to }, `${i.account}: ${i.summary}`, `Reassigned to ${to}`)} />)}
+              </div>
+            ))}
+            {seller !== "All" && mine.length > 10 && <p className="hint">{mine.length - 10} more are in the whole-team view.</p>}
+            <details className="how"><summary>How the order is decided</summary>
+              <p>Plain rules, not AI. Urgency counts most: late items, then items due within 3 days, 7 days, 14 days. Undated requests rise the longer a client has waited. Deal value adds weight (up to $80k). Client deadlines, requests and our own promises outrank cross-sell ideas.</p>
+              <p>Unclear accounts and contacts who asked not to be contacted never appear here. Items the AI is unsure about carry a &ldquo;please check&rdquo; label. The same ask repeated across threads or internal notes is shown once. Items made obsolete by a later deal change are hidden, and CRM activity after a due date marks the item as done.</p>
             </details>
           </section>
         )}
 
         {run && tab === "fixes" && (
           <section>
-            <p className="meta">PromiseKeeper never changes the CRM by itself. Each change below needs a human decision; approved changes are applied to the in-browser CRM copy (Data tab) and logged.</p>
+            <p className="meta">Nothing here changes the CRM until you approve it. Approved changes appear in the Source data tab and in the audit log.</p>
             {analysis.fixes.length === 0 && <div className="empty">No CRM fixes suggested.</div>}
             {analysis.fixes.map((f) => <FixCard key={f.id} f={f} d={decisions[f.id]} onDoc={setViewDoc}
               onApprove={() => decide(f.id, { state: "approved" }, `${f.account} ${f.field}`, `${f.from} → ${f.to}`)}
@@ -219,7 +251,7 @@ export default function Home() {
 
         {run && tab === "unsure" && (
           <section>
-            <p className="meta">Things PromiseKeeper will not guess about. Nothing here reaches the brief or the CRM until a person looks at it.</p>
+            <p className="meta">PromiseKeeper does not guess about these. None of them reach the brief or the CRM until someone decides.</p>
             {analysis.unsure.length === 0 && <div className="empty">Nothing unsure.</div>}
             {analysis.unsure.map((u) => (
               <div className="card" key={u.id}>
@@ -287,47 +319,51 @@ export default function Home() {
       </main>
 
       {viewDoc && <DocModal id={viewDoc.id} quote={viewDoc.quote} onClose={() => setViewDoc(null)} />}
-      <footer>AtliQ PromiseKeeper prototype · Capstone 1 · Kokku Naga Venkata Durga Prasad · Synthetic data only. The system never emails clients or edits the CRM without approval.</footer>
+      <footer><p>PromiseKeeper never emails a client and never changes the CRM without your approval.</p><p>Capstone 1 prototype by Kokku Naga Venkata Durga Prasad. All data is synthetic.</p></footer>
     </>
   );
 }
 
-function dueLabel(i: BriefItem) {
-  if (i.daysLeft === null) return i.ageDays > 0 ? <span className={`pill ${i.ageDays > 14 ? "red" : "amber"}`}>waiting {i.ageDays}d</span> : null;
-  if (i.daysLeft < 0) return <span className="pill red">overdue {-i.daysLeft}d · was due {fmtDate(i.due_date)}</span>;
-  return <span className={`pill ${i.daysLeft <= 7 ? "amber" : "grey"}`}>due {fmtDate(i.due_date)} · {i.daysLeft}d left</span>;
+function stamp(i: BriefItem) {
+  if (i.daysLeft === null) return { cls: i.ageDays > 14 ? "late" : "wait", big: i.ageDays > 0 ? `${i.ageDays}` : "new", small: i.ageDays > 0 ? "days waiting" : "no date" };
+  if (i.daysLeft < 0) return { cls: "late", big: fmtDate(i.due_date), small: `${-i.daysLeft} ${-i.daysLeft === 1 ? "day" : "days"} late` };
+  if (i.daysLeft === 0) return { cls: "soon", big: fmtDate(i.due_date), small: "due today" };
+  return { cls: i.daysLeft <= 7 ? "soon" : "later", big: fmtDate(i.due_date), small: `${i.daysLeft} ${i.daysLeft === 1 ? "day" : "days"} left` };
 }
 
 function ItemCard({ i, rank, owner, onDoc, onDone, onSnooze, onReassign }: { i: BriefItem; rank: number; owner: string | null; onDoc: (d: { id: string; quote?: string }) => void; onDone: () => void; onSnooze: () => void; onReassign: (to: string) => void }) {
   const doc = getDoc(i.docId);
+  const st = stamp(i);
   return (
-    <div className="card">
-      <div className="row">
-        <span className="rank">#{rank}</span>
-        <span className="pill">{TYPE_LABEL[i.type]}</span>
-        {dueLabel(i)}
-        {i.match.kind === "none" && <span className="pill amber">not in CRM</span>}
-        {i.match.candidates.length > 1 && <span className="pill grey">duplicate CRM records</span>}
-        {i.confidence === "low" && <span className="pill amber">AI unsure: please check</span>}
-        {i.alsoIn.length > 0 && <span className="pill grey">also in {i.alsoIn.length} other {i.alsoIn.length === 1 ? "source" : "sources"}</span>}
+    <article className="item">
+      <div className={`stamp ${st.cls}`} aria-label={`${st.big} ${st.small}`}><b>{st.big}</b><span>{st.small}</span></div>
+      <div className="item-body">
+        <div className="item-head">
+          <span className="rank" title="Position in the ranking">{rank}</span>
+          <span className="kind">{TYPE_LABEL[i.type]}</span>
+          {i.match.kind === "none" && <span className="flag amber">Not in CRM</span>}
+          {i.confidence === "low" && <span className="flag amber">AI unsure, please check</span>}
+          {i.match.candidates.length > 1 && <span className="flag grey">Duplicate CRM records</span>}
+        </div>
+        <h4>{i.account}{i.crmId && <small>{i.crmId}</small>}</h4>
+        <p className="what">{i.summary}</p>
+        <blockquote><span>{i.quote}</span></blockquote>
+        <div className="item-foot">
+          <span className="who"><span className="avatar sm" aria-hidden="true">{owner ? owner[0] : "?"}</span>{owner ?? "No owner"}</span>
+          {i.value ? <span className="val">${i.value.toLocaleString()}</span> : null}
+          <button className="src" onClick={() => onDoc({ id: i.docId, quote: i.quote })}>{doc?.kind === "note" ? "Meeting note" : "Email"}, {fmtDate(i.docDate)}{i.alsoIn.length > 0 ? ` (+${i.alsoIn.length} more)` : ""}</button>
+          <span className="why" title="Why it ranks here">{i.reason}</span>
+        </div>
+        <div className="actions">
+          <button className="btn done" onClick={onDone}>Mark done</button>
+          <button className="btn ghost" onClick={onSnooze}>Snooze</button>
+          <select defaultValue="" onChange={(e) => e.target.value && onReassign(e.target.value)} aria-label="Reassign to">
+            <option value="" disabled>Reassign</option>
+            {["Bhavin", "Dhaval", "Karandeep", "Jay", "Pranav", "Ayush"].map((p) => <option key={p}>{p}</option>)}
+          </select>
+        </div>
       </div>
-      <h3>{i.account}{i.crmId && <span className="meta"> · {i.crmId}</span>}</h3>
-      <div>{i.summary}</div>
-      <div className="meta" style={{ marginTop: 4 }}>
-        Owner: <b>{owner ?? "unassigned"}</b>{i.value ? ` · value $${i.value.toLocaleString()}` : ""} · why ranked here: {i.reason}
-        {i.date_phrase && ` · said: "${i.date_phrase}"`}
-      </div>
-      <blockquote>{i.quote}</blockquote>
-      <div className="row">
-        <button className="btn small good" onClick={onDone}>Done</button>
-        <button className="btn small" onClick={onSnooze}>Snooze</button>
-        <select defaultValue="" onChange={(e) => e.target.value && onReassign(e.target.value)} aria-label="Reassign">
-          <option value="" disabled>Reassign...</option>
-          {["Bhavin", "Dhaval", "Karandeep", "Jay", "Pranav", "Ayush"].map((s) => <option key={s}>{s}</option>)}
-        </select>
-        <button className="btn small" onClick={() => onDoc({ id: i.docId, quote: i.quote })}>Source: {doc?.kind === "note" ? "note" : "email"} {i.docDate}</button>
-      </div>
-    </div>
+    </article>
   );
 }
 

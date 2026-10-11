@@ -101,7 +101,7 @@ export function scoreItem(i: Pick<BriefItem, "type" | "daysLeft" | "ageDays" | "
   if (i.value) { s += Math.min(i.value / 2000, 40); parts.push(`$${Math.round(i.value / 1000)}k`); }
   s += TYPE_BONUS[i.type] ?? 0;
   if (i.match.kind === "none") parts.push("not in CRM");
-  return { score: Math.round(s), reason: parts.join(" · ") };
+  return { score: Math.round(s), reason: parts.join(", ") };
 }
 
 export interface CrmFix {
