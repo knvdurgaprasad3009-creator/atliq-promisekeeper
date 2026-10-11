@@ -158,8 +158,10 @@ select { border: 1px solid var(--rule); border-radius: 9px; padding: 6px 10px; b
 .item h4 { margin: 6px 0 2px; font-size: 19px; font-weight: 700; letter-spacing: -0.01em; }
 .item h4 small { margin-left: 8px; font-size: 13px; font-weight: 400; color: var(--ink-3); }
 .what { margin: 0 0 10px; color: var(--ink); max-width: 70ch; }
-.item blockquote { margin: 0 0 12px; font: italic 16px/1.55 var(--serif); color: #2d3748; max-width: 72ch; }
-.item blockquote span { background: linear-gradient(transparent 55%, var(--mark) 55%); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0 2px; }
+/* source quote: a clear highlighted panel, not an underline */
+.item blockquote, .card blockquote { position: relative; margin: 0 0 12px; padding: 10px 14px 11px 40px; max-width: 76ch; background: #fff7cc; border: 1px solid #f1df8a; border-left: 4px solid #e2b93b; border-radius: 8px; font: italic 16px/1.55 var(--serif); color: #2b2a1f; }
+.item blockquote::before, .card blockquote::before { content: "\201C"; position: absolute; left: 12px; top: 2px; font: 700 30px/1 var(--serif); color: #c99a1c; font-style: normal; }
+.item blockquote span, .card blockquote span { background: none; padding: 0; }
 .item-foot { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 14px; color: var(--ink-2); }
 .who { display: inline-flex; align-items: center; font-weight: 500; color: var(--ink); }
 .val { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -172,7 +174,6 @@ details.how summary { cursor: pointer; font-weight: 500; color: var(--ink); }
 /* shared bits used by other tabs */
 .card { background: var(--sheet); border: 1px solid var(--rule); border-radius: 14px; padding: 16px 18px; margin-bottom: 10px; }
 .card h3 { margin: 6px 0 4px; font-size: 18px; }
-.card blockquote { margin: 8px 0; font: italic 15px/1.55 var(--serif); color: #2d3748; }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .meta { color: var(--ink-2); font-size: 14px; }
 .pill { display: inline-block; font-size: 12px; padding: 1px 9px; border-radius: 999px; background: var(--later-bg); color: var(--later); font-weight: 500; }
@@ -196,7 +197,7 @@ mark { background: var(--mark); padding: 0 2px; }
 footer { color: var(--ink-3); font-size: 13px; text-align: center; padding: 28px 16px 40px; }
 footer p { margin: 2px 0; }
 
-.card blockquote span, .fix blockquote span { background: linear-gradient(transparent 58%, var(--mark) 58%); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0 2px; }
+.card blockquote { margin: 8px 0; font-size: 15px; }
 h3.sub { margin: 28px 0 10px; font-size: 17px; }
 
 /* CRM fix cards */

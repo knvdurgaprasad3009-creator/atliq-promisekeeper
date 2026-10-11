@@ -482,7 +482,7 @@ function FixCard({ f, d, onDoc, onApprove, onReject, onUndo }: { f: CrmFix; d?: 
           <span className="to">{f.to}</span>
         </div>
         <p className="meta why-fix">{f.why}</p>
-        {f.evidence.map((e, k) => (
+        {f.evidence.filter((e, k, all) => !all.some((o, j) => j !== k && o.docId === e.docId && (o.quote.length > e.quote.length || j < k) && o.quote.toLowerCase().includes(e.quote.toLowerCase()))).map((e, k) => (
           <div key={k} className="evidence">
             <blockquote><span>{e.quote}</span></blockquote>
             <button className="src" onClick={() => onDoc({ id: e.docId, quote: e.quote })}>{getDoc(e.docId)?.kind === "note" ? "Meeting note" : "Email"}, {fmtDate(getDoc(e.docId)?.date ?? null)}</button>
