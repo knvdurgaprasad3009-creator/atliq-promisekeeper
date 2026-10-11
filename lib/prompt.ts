@@ -76,7 +76,7 @@ export const RECORD_TOOL = {
             due_date: { type: ["string", "null"] },
             status: { type: "string", enum: ["open", "done"] },
             value_usd: { type: ["number", "null"] },
-            suggested_crm_status: { type: ["string", "null"], enum: ["New", "Contacted", "Proposal Sent", "Won", "Lost", null] },
+            suggested_crm_status: { type: ["string", "null"], description: "One of: New, Contacted, Proposal Sent, Won, Lost. Null if no stage change." },
             referrer: { type: ["string", "null"] },
             confidence: { type: "string", enum: ["high", "low"] },
           },

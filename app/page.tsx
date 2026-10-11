@@ -71,7 +71,7 @@ export default function Home() {
             const j = await res.json();
             if (!res.ok && !j?.docId) throw new Error(j?.error || res.statusText);
             if (j.error && attempt === 0) continue;
-            results[d.id] = j; if (j.error) failures++;
+            results[d.id] = j; if (j.error) { failures++; setErr(j.error); }
             break;
           } catch (e: any) {
             if (attempt === 1) { failures++; setErr(e.message); }
@@ -159,6 +159,7 @@ export default function Home() {
       <main className="wrap">
         {status && !status.aiEnabled && <div className="notice">Live AI is off: the server has no ANTHROPIC_API_KEY. {run ? `Showing the ${loadedFrom}.` : "Add the key in Vercel settings to run the analysis."}</div>}
         {err && <div className="notice">Some documents failed: {err}</div>}
+        {run && (() => { const bad = Object.values(run.results).filter((r) => r.error); return bad.length ? <div className="notice"><b>{bad.length} of {Object.keys(run.results).length} documents failed in the last run.</b> First error from the AI service: <code>{bad[0].error}</code></div> : null; })()}
         {run && (
           <p className="meta">AI run: {new Date(run.ranAt).toLocaleString()} ({loadedFrom}) · models: {status?.filterModel ?? "Haiku"} (filter), {status?.extractionModel ?? "Sonnet"} (extraction) · {tokens.toLocaleString()} tokens, at most ${costUpper.toFixed(2)}</p>
         )}
