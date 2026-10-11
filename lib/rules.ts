@@ -74,6 +74,10 @@ export interface BriefItem extends ExtractedItem {
   ageDays: number;
   score: number;
   reason: string;
+  /** Other documents that mention the same item (merged duplicates). */
+  alsoIn: string[];
+  /** Keys of duplicate items merged into this one. */
+  merged: string[];
 }
 
 const TYPE_BONUS: Partial<Record<ItemType, number>> = {
@@ -85,13 +89,14 @@ export function scoreItem(i: Pick<BriefItem, "type" | "daysLeft" | "ageDays" | "
   const parts: string[] = [];
   let s = 0;
   if (i.daysLeft !== null) {
-    if (i.daysLeft < 0) { s += 60 + Math.min(-i.daysLeft, 30); parts.push(`overdue ${-i.daysLeft}d`); }
-    else if (i.daysLeft <= 3) { s += 55; parts.push(i.daysLeft === 0 ? "due today" : `${i.daysLeft}d left`); }
-    else if (i.daysLeft <= 7) { s += 45; parts.push(`${i.daysLeft}d left`); }
-    else if (i.daysLeft <= 14) { s += 30; parts.push(`${i.daysLeft}d left`); }
-    else { s += 10; parts.push(`${i.daysLeft}d left`); }
+    if (i.daysLeft < -60) { s += 30; parts.push(`overdue ${-i.daysLeft}d (revive?)`); }
+    else if (i.daysLeft < 0) { s += 50 + Math.min(-i.daysLeft, 10); parts.push(`overdue ${-i.daysLeft}d`); }
+    else if (i.daysLeft <= 3) { s += 62; parts.push(i.daysLeft === 0 ? "due today" : `${i.daysLeft}d left`); }
+    else if (i.daysLeft <= 7) { s += 56; parts.push(`${i.daysLeft}d left`); }
+    else if (i.daysLeft <= 14) { s += 40; parts.push(`${i.daysLeft}d left`); }
+    else { s += 15; parts.push(`${i.daysLeft}d left`); }
   } else if (i.type === "client_request" || i.type === "promise_by_atliq" || i.type === "new_lead") {
-    s += Math.min(10 + i.ageDays, 50); parts.push(`waiting ${i.ageDays}d`);
+    s += Math.min(10 + Math.round(i.ageDays / 2), 45); parts.push(`waiting ${i.ageDays}d`);
   } else { s += 10; }
   if (i.value) { s += Math.min(i.value / 2000, 40); parts.push(`$${Math.round(i.value / 1000)}k`); }
   s += TYPE_BONUS[i.type] ?? 0;
@@ -114,6 +119,7 @@ export interface CrmFix {
 export interface UnsureItem { id: string; kind: "ambiguous" | "low_confidence" | "suspicious" | "conflict" | "dropped"; title: string; detail: string; docId: string; quote?: string }
 
 export interface Analysis {
+  all: BriefItem[];
   brief: BriefItem[];
   done: BriefItem[];
   fixes: CrmFix[];
@@ -135,7 +141,7 @@ function atliqRecipient(doc: Doc): string | null {
 }
 
 export function analyse(ds: Dataset, run: RunResult | null): Analysis {
-  const empty: Analysis = { brief: [], done: [], fixes: [], unsure: [], doNotContact: [], stats: { docs: ds.docs.length, relevant: 0, items: 0, dropped: 0, suspicious: 0, inputTokens: 0, outputTokens: 0 } };
+  const empty: Analysis = { all: [], brief: [], done: [], fixes: [], unsure: [], doNotContact: [], stats: { docs: ds.docs.length, relevant: 0, items: 0, dropped: 0, suspicious: 0, inputTokens: 0, outputTokens: 0 } };
   if (!run) return empty;
   const asOf = ds.asOf;
   const all: BriefItem[] = [];
@@ -162,11 +168,10 @@ export function analyse(ds: Dataset, run: RunResult | null): Analysis {
       const daysLeft = it.due_date ? daysBetween(asOf, it.due_date) : null;
       const ageDays = Math.max(0, daysBetween(doc.date, asOf));
       const account = rec?.company ?? it.company ?? (match.candidates[0]?.company ?? it.person ?? "Unknown");
-      const bi: BriefItem = { ...it, key: `${doc.id}#${k}`, docId: doc.id, docDate: doc.date, account, crmId: rec?.lead_id ?? null, match, owner, value, daysLeft, ageDays, score: 0, reason: "" };
+      const bi: BriefItem = { ...it, alsoIn: [], merged: [], key: `${doc.id}#${k}`, docId: doc.id, docDate: doc.date, account, crmId: rec?.lead_id ?? null, match, owner, value, daysLeft, ageDays, score: 0, reason: "" };
       Object.assign(bi, scoreItem(bi));
       all.push(bi);
       if (match.kind === "ambiguous") unsure.push({ id: `amb-${bi.key}`, kind: "ambiguous", title: `Which account? ${it.person ?? it.company ?? "Unknown sender"}`, detail: `${match.note}: ${match.candidates.map((c) => `${c.contact_name} (${c.company}, ${c.lead_id})`).join("; ")}. Not attached to any account until a seller confirms.`, docId: doc.id, quote: it.quote });
-      else if (it.confidence === "low") unsure.push({ id: `low-${bi.key}`, kind: "low_confidence", title: `Low confidence: ${it.summary}`, detail: "The AI marked this item as unclear. Shown here instead of the brief.", docId: doc.id, quote: it.quote });
     });
   }
 
@@ -174,22 +179,65 @@ export function analyse(ds: Dataset, run: RunResult | null): Analysis {
   const dnc = new Set(all.filter((i) => i.type === "do_not_contact").map((i) => i.crmId ?? companyKey(i.account)));
   const isDnc = (i: BriefItem) => dnc.has(i.crmId ?? companyKey(i.account));
 
-  // Later documents supersede earlier ones for the same account and type (e.g. a request answered in a newer thread)
-  const brief = all
-    .filter((i) => BRIEF_TYPES.includes(i.type) && i.status === "open" && i.match.kind !== "ambiguous" && i.confidence === "high" && !isDnc(i))
-    .sort((a, b) => b.score - a.score);
+  // Brief eligibility:
+  // - open items of brief types, never for ambiguous accounts or do-not-contact accounts
+  // - "new lead" only when the company is NOT already in the CRM (otherwise it is a CRM fix, not a to-do)
+  // - low-confidence items stay visible but are flagged "please check" (identity problems go to Unsure instead)
+  // Superseded: once a later document shows a deal-stage change for an account (e.g. "approved"),
+  // open asks from earlier documents for that account are history, not to-dos.
+  const stageAt = new Map<string, string>();
+  for (const i of all) if (i.type === "status_signal" && i.crmId) stageAt.set(i.crmId, [stageAt.get(i.crmId) ?? "", i.docDate].sort().pop()!);
+  const superseded = (i: BriefItem) => !!i.crmId && !!stageAt.get(i.crmId) && i.docDate < stageAt.get(i.crmId)! && !["new_lead", "expansion_signal"].includes(i.type);
+  // CRM evidence that an item already happened: a proposal item when the CRM stage is already past it,
+  // or a dated AtliQ promise when the CRM logged contact with the client on or after the due date.
+  for (const i of all) {
+    const rec = i.match.record;
+    if (!rec || i.status !== "open") continue;
+    const proposalDone = /proposal/i.test(i.summary) && (i.type === "client_deadline" || i.type === "client_request") && !!i.due_date && i.due_date < ds.asOf && ["Proposal Sent", "Won"].includes(rec.status);
+    const contactAfterDue = i.type === "promise_by_atliq" && !!i.due_date && !!rec.last_contact_date && rec.last_contact_date >= i.due_date && i.due_date < ds.asOf;
+    if (proposalDone || contactAfterDue) { i.status = "done"; i.reason = proposalDone ? "CRM stage shows the proposal was sent" : `CRM logged contact on ${rec.last_contact_date}`; }
+  }
+  const eligible = all.filter((i) => BRIEF_TYPES.includes(i.type) && i.status === "open" && i.match.kind !== "ambiguous" && !isDnc(i)
+    && !(i.type === "new_lead" && i.match.kind !== "none")
+    && companyKey(i.account) !== "" && !/^unknown$/i.test(i.account)
+    && !superseded(i));
+
+  // De-duplicate: the same commitment is often restated in internal meetings or several threads.
+  // Same account + type + due date, or an internal-meeting restatement of an item that exists in a client document.
+  const acc = (i: BriefItem) => i.crmId ?? companyKey(i.account);
+  const internal = (i: BriefItem) => /internal|pipeline_review|prioritization|debrief|_check/.test(i.docId);
+  const sorted = [...eligible].sort((a, b) => Number(internal(a)) - Number(internal(b)) || b.score - a.score);
+  const kept: BriefItem[] = [];
+  for (const i of sorted) {
+    const fam = ["client_request", "client_deadline", "promise_by_atliq"];
+    const shared = (x: BriefItem, y: BriefItem) => { const w = (t: string) => new Set(t.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter((z) => z.length > 4)); const a = w(x.summary), b = w(y.summary); return [...a].filter((z) => b.has(z)).length; };
+    const dup = kept.find((k) => acc(k) === acc(i) && (
+      (k.due_date && k.due_date === i.due_date && fam.includes(k.type) && fam.includes(i.type)) ||
+      (k.type === i.type && k.due_date && k.due_date === i.due_date) ||
+      (k.type === i.type && k.docId !== i.docId && shared(k, i) >= 3) ||
+      (internal(i) && ["client_request", "client_deadline", "promise_by_atliq"].includes(i.type) && ["client_request", "client_deadline", "promise_by_atliq"].includes(k.type) && (!i.due_date || !k.due_date || i.due_date === k.due_date)) ||
+      (k.type === "new_lead" && i.type === "new_lead")));
+    if (dup) { dup.merged.push(i.key); if (!dup.alsoIn.includes(i.docId) && dup.docId !== i.docId) dup.alsoIn.push(i.docId); }
+    else kept.push(i);
+  }
+  const brief = kept.sort((a, b) => b.score - a.score);
   const done = all.filter((i) => i.status === "done" && BRIEF_TYPES.includes(i.type));
 
   // Conflicting dates: same account, two client deadlines with different dates that share a key word
-  const dl = all.filter((i) => i.type === "client_deadline" && i.due_date);
+  const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+  const monthOf = (i: BriefItem) => i.due_date ? Number(i.due_date.slice(5, 7)) : (() => { const m = MONTHS.findIndex((mm) => (i.date_phrase ?? "").toLowerCase().includes(mm)); return m >= 0 ? m + 1 : null; })();
+  const dl = all.filter((i) => i.type === "client_deadline" && monthOf(i) !== null);
   for (let a = 0; a < dl.length; a++) for (let b = a + 1; b < dl.length; b++) {
     const x = dl[a], y = dl[b];
-    if (x.account !== y.account || x.due_date === y.due_date || x.docId === y.docId) continue;
+    if (acc(x) !== acc(y) || x.docId === y.docId) continue;
+    const differ = x.due_date && y.due_date ? x.due_date !== y.due_date : monthOf(x) !== monthOf(y);
+    if (!differ) continue;
     const kw = ["board", "budget", "review", "decision", "proposal"].find((w) => x.summary.toLowerCase().includes(w) && y.summary.toLowerCase().includes(w));
-    if (kw) unsure.push({ id: `conf-${x.key}-${y.key}`, kind: "conflict", title: `Conflicting dates for ${x.account} (${kw})`, detail: `${x.due_date} in ${x.docId} vs ${y.due_date} in ${y.docId}. The newer source (${x.docDate > y.docDate ? x.docId : y.docId}) is preferred; please confirm.`, docId: x.docDate > y.docDate ? x.docId : y.docId, quote: (x.docDate > y.docDate ? x : y).quote });
+    const newer = x.docDate > y.docDate ? x : y, older = newer === x ? y : x;
+    if (kw) unsure.push({ id: `conf-${x.key}-${y.key}`, kind: "conflict", title: `Conflicting dates for ${x.account} (${kw})`, detail: `"${older.date_phrase ?? older.due_date}" in ${older.docId} vs "${newer.date_phrase ?? newer.due_date}" in ${newer.docId}. The newer source is preferred; please confirm.`, docId: newer.docId, quote: newer.quote });
   }
 
-  return { brief, done, fixes: crmFixes(ds, all, isDnc), unsure, doNotContact: [...dnc], stats: st };
+  return { all, brief, done, fixes: crmFixes(ds, all, isDnc), unsure, doNotContact: [...dnc], stats: st };
 }
 
 function crmFixes(ds: Dataset, all: BriefItem[], isDnc: (i: BriefItem) => boolean): CrmFix[] {

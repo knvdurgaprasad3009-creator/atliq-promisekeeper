@@ -38,8 +38,11 @@ Rules for every item:
 6. value_usd: a budget or price stated for this client in the document (numbers like 35-40k: use the lower bound, 35000). Otherwise null.
 7. referrer: who introduced or referred the lead, if stated.
 8. confidence: "low" when the identity of the client, the date or the meaning is unclear; otherwise "high".
-9. Record each distinct commitment once. Do not record AtliQ-internal chatter that involves no client.
-10. If the document contains nothing relevant, call the tool with an empty items list.`;
+9. Record each distinct commitment once. Do not record AtliQ-internal chatter that involves no named client company (e.g. "go through the remaining business cards").
+10. A question a client asks AtliQ ("do you do demand forecasting?") is a client_request, even if it hints at a new need. Use new_lead only for a company making first contact or being introduced.
+11. An offer such as "happy to get on a call" is not a promise unless the client accepted it. "I'll send...", "will revert by...", "let me set up..." and "ping him after the 15th" are promises.
+12. Month-only dates resolve to the last day of that month (e.g. "in September" = 2026-09-30); quarters to the quarter's last day (e.g. "around Q2 2026" = 2026-06-30). When the promiser, the client and the date are explicit, use confidence "high".
+13. If the document contains nothing relevant, call the tool with an empty items list.`;
 }
 
 export function docMessage(doc: Doc) {

@@ -201,7 +201,7 @@ export default function Home() {
               onReassign={(to) => decide(i.key, { state: "reassigned", to }, `${i.account}: ${i.summary}`, `Reassigned to ${to}`)} />)}
             {seller !== "All" && mine.length > 10 && <p className="meta">{mine.length - 10} more items are in the team view. The personal brief is capped at 10 to avoid alert fatigue.</p>}
             <details style={{ marginTop: 16 }}><summary className="meta">How items are ranked (rules, not AI)</summary>
-              <p className="meta">Score = urgency (overdue: 60+; due in 0-3 days: 55; 4-7: 45; 8-14: 30; later: 10; undated requests: 10 + days waiting, max 50) + deal value (value / $2,000, max 40) + type (client deadline 10; request, promise, new lead, revived deal 8; revisit 6; cross-sell 5). Items in the Unsure list, low-confidence items and do-not-contact accounts never reach the brief.</p>
+              <p className="meta">Score = urgency (overdue: 60+; due in 0-3 days: 55; 4-7: 45; 8-14: 30; later: 10; undated requests: 10 + days waiting, max 50) + deal value (value / $2,000, max 40) + type (client deadline 10; request, promise, new lead, revived deal 8; revisit 6; cross-sell 5). Ambiguous accounts and do-not-contact accounts never reach the brief; items the AI is unsure about are shown with a "please check" label. Duplicates across threads and internal notes are merged, items superseded by a later deal-stage change are hidden, and CRM evidence (e.g. a logged contact after the due date) marks items as done.</p>
             </details>
           </section>
         )}
@@ -308,6 +308,8 @@ function ItemCard({ i, rank, owner, onDoc, onDone, onSnooze, onReassign }: { i: 
         {dueLabel(i)}
         {i.match.kind === "none" && <span className="pill amber">not in CRM</span>}
         {i.match.candidates.length > 1 && <span className="pill grey">duplicate CRM records</span>}
+        {i.confidence === "low" && <span className="pill amber">AI unsure: please check</span>}
+        {i.alsoIn.length > 0 && <span className="pill grey">also in {i.alsoIn.length} other {i.alsoIn.length === 1 ? "source" : "sources"}</span>}
       </div>
       <h3>{i.account}{i.crmId && <span className="meta"> · {i.crmId}</span>}</h3>
       <div>{i.summary}</div>
