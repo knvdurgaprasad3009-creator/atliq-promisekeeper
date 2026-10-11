@@ -8,14 +8,16 @@ PromiseKeeper reads the emails, meeting notes and CRM, extracts every commitment
 
 ## What you can do in the app
 
+The left sidebar holds the sections and an **AI run** panel (last run time, documents, cost, models, **Run again** and **Download results**). A strip of key numbers (late, due in 7 days, waiting on a reply, pipeline at stake, CRM fixes to review, eval gates passing) stays at the top of every section; each number is clickable. On a phone the sections become a scrolling top bar and the AI run panel moves to the end of the page.
+
 | Tab | What it shows |
 |---|---|
-| **Daily brief** | Ranked items per seller (Team view, Bhavin, Dhaval, Karandeep, Jay, Unowned). Each card: type, account, what is owed, due date / days left, owner, value, *why it ranks here*, the source quote and a link to the source. Done / Snooze / Reassign. Personal briefs are capped at 10 items; "Summarise my day" writes a two-line summary from those items only. |
+| **Today's brief** | Ranked items per seller (Team view, Bhavin, Dhaval, Karandeep, Jay, Unowned). Each card: type, account, what is owed, due date / days left, owner, value, *why it ranks here*, the source quote and a link to the source. Done / Snooze / Reassign. Personal briefs are capped at 10 items; "Summarise my day" writes a two-line summary from those items only. |
 | **CRM fixes** | Missing leads, wrong statuses (e.g. "Lost" deals that came back), last-contact and follow-up dates, owners, values, possible duplicates — each with evidence. Approve / Reject. Nothing changes until a person approves. |
-| **Unsure & flagged** | Things it will not guess about: ambiguous contacts, low-confidence items, conflicting dates, suspicious instructions inside emails, and AI items dropped by the guardrails. |
+| **Needs a human** | Things it will not guess about: ambiguous contacts, low-confidence items, conflicting dates, suspicious instructions inside emails, and AI items dropped by the guardrails. |
 | **Evals** | Launch gates from the PRD, measured against a hand-labelled answer key: recall, precision, citation faithfulness, leads, signals, plus five safety tests. Lists every labelled item the AI missed. |
 | **Audit log** | Every AI run and every human decision. |
-| **Data** | The CRM (approved changes highlighted) and every document exactly as the AI sees it. |
+| **Source data** | The CRM (approved changes highlighted) and every document exactly as the AI sees it. |
 
 ## Architecture (what is AI and what is not)
 
@@ -38,7 +40,7 @@ Browser (Next.js page)
 
 ## Guardrails (from the Step 2 board and the PRD)
 
-1. **No quote, no item:** every item must carry an exact quote found in the source; anything else is dropped and shown under "Unsure & flagged".
+1. **No quote, no item:** every item must carry an exact quote found in the source; anything else is dropped and shown under "Needs a human".
 2. **Never guesses identity:** ambiguous contacts (e.g. three different Kulkarnis) go to the Unsure list.
 3. **Never acts:** there is no code path that sends an email or writes to a real CRM. CRM changes are proposals until approved.
 4. **Emails are data, not instructions:** a regex tripwire plus the model flag suspicious instructions; stage-change items from such documents are blocked.
@@ -63,7 +65,7 @@ Requires Node.js 18+ and an Anthropic API key.
 npm install
 cp .env.example .env.local        # then put your key in ANTHROPIC_API_KEY
 npm run prepare-data              # only needed if you change data/raw or data/additions
-npm run dev                       # open http://localhost:3000 and press "Run AI analysis"
+npm run dev                       # open http://localhost:3000 and press "Read all emails"
 npm test                          # unit tests for guardrails and the rules engine
 ```
 
@@ -75,12 +77,12 @@ A full run reads 55 documents (roughly 150–250k tokens) and costs about **$0.5
 2. In Vercel: **Add New → Project → Import** the repository. Framework: Next.js (auto-detected). No build settings to change.
 3. **Settings → Environment Variables:**
    * `ANTHROPIC_API_KEY` — your key (required for live AI).
-   * `ACCESS_CODE` — optional but recommended: anyone pressing "Run AI analysis" on the public link must type this code, so strangers cannot spend your credits.
-4. Deploy. Open the URL and press **Run AI analysis**.
+   * `ACCESS_CODE` — optional but recommended: anyone pressing "Run again" on the public link must type this code, so strangers cannot spend your credits.
+4. Deploy. Open the URL and press **Read all emails** in the AI run panel.
 
 ### Show results without spending credits (recommended before submitting)
 
-After one good run, press **Export run** (downloads `run.json`), put it at `public/cache/run.json`, commit and redeploy. Visitors then see that run immediately; the "Re-run" button still works for anyone with the access code.
+After one good run, press **Download results (JSON)** in the AI run panel (downloads `run.json`), put it at `public/cache/run.json`, commit and redeploy. Visitors then see that run immediately; the "Run again" button still works for anyone with the access code.
 
 ## Project structure
 
