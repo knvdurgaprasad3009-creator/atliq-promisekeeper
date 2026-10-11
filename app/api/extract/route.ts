@@ -36,7 +36,7 @@ export async function POST(req: Request) {
   try {
     // Step 1: cheap relevance filter (Haiku)
     const f = await client.messages.create({
-      model: FILTER_MODEL, max_tokens: 200, temperature: 0,
+      model: FILTER_MODEL, max_tokens: 200,
       tools: [FILTER_TOOL as any], tool_choice: { type: "tool", name: "classify" },
       messages: [{ role: "user", content: filterPrompt(doc) }],
     });
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
     // Step 2: extraction (Sonnet) with forced structured output
     const m = await client.messages.create({
-      model: EXTRACTION_MODEL, max_tokens: 3000, temperature: 0,
+      model: EXTRACTION_MODEL, max_tokens: 3000,
       system: extractionSystemPrompt(dataset.asOf, dataset.team),
       tools: [RECORD_TOOL as any], tool_choice: { type: "tool", name: "record_items" },
       messages: [{ role: "user", content: docMessage(doc) }],

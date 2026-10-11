@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   const safe = lines.slice(0, 10).map((l: unknown) => String(l).slice(0, 300));
   const client = new Anthropic({ apiKey });
   const m = await client.messages.create({
-    model: FILTER_MODEL, max_tokens: 200, temperature: 0,
+    model: FILTER_MODEL, max_tokens: 200,
     system: "You write a two-sentence morning summary for a busy founder-seller. Use ONLY the items given. Do not add facts, numbers or names that are not in the items. Plain, direct language.",
     messages: [{ role: "user", content: `Seller: ${String(seller).slice(0, 40)}\nRanked items (most urgent first):\n${safe.map((l: string, i: number) => `${i + 1}. ${l}`).join("\n")}` }],
   });
