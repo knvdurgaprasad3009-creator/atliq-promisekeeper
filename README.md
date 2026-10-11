@@ -2,6 +2,8 @@
 
 Capstone 1 prototype (Codebasics AI PM Cohort) · Kokku Naga Venkata Durga Prasad
 
+> **Capstone submission:** all seven deliverables (worksheet, Miro map, PRD, cost estimate, prototype, presentation, demo video) are listed in **[deliverables/](deliverables/README.md)**. Live app: [atliq-promisekeeper.vercel.app](https://atliq-promisekeeper.vercel.app)
+
 AtliQ's founder-sellers don't have a lead problem; they have a **memory problem**. Promises made in email, client deadlines and buying signals die in inboxes. In the dataset, only **12 of 37** commitments due by 10 July 2026 were met (32%), and **$423k** of open pipeline has an unanswered client or a deadline within ~3 weeks.
 
 PromiseKeeper reads the emails, meeting notes and CRM, extracts every commitment, client deadline and buying signal **with a verbatim quote from its source**, and gives each seller a ranked daily brief. It **proposes** CRM fixes for one-click approval and **never contacts clients or edits the CRM on its own**.
